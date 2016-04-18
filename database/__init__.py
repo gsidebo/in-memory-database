@@ -2,7 +2,7 @@ from __future__ import print_function
 
 
 class InMemoryDatabase(object):
-    """Stores key-value pairs and maintains an index of current value counts in memory
+    """Stores key-value pairs and maintains an index of current value counts in memory.
 
     Attributes:
         data: Internal storage for key-value pairs. Values are lists which act as a 
@@ -83,23 +83,23 @@ class InMemoryDatabase(object):
 
     
 class DbSession(object):
-    """Stores key-value pairs and maintains an index of current value counts in memory
+    """Provides an API for users to make changes to an in-memory database with transactions.
 
     Attributes:
-        data: Internal storage for key-value pairs. Values are lists which act as a 
-            value's history. Only one value can be 'active' in these lists.
-        value_index: Dictionary which maps each active value in the data to the number
-            of times it appears. This is maintained to reduce lookup times when 
-            determining the number of keys that have a certain value.
+        database: An instance of an in-memory database.
+        transaction_stack: A stack of active transactions.
+        current_trans: The currently active transaction. Transactions are a set of keys which
+            represent keys in the database that have been edited during the current transaction.
     """
     def __init__(self):
         self.database = InMemoryDatabase()
         self.transaction_stack = []
+        self.current_trans = None
         self.reset_transaction_state()
     
     def reset_transaction_state(self):
         self.current_trans = set() if not self.transaction_stack else self.transaction_stack[0]
-        # Transaction stack will always have a 'base' transaction - cannot be rolled back/commited
+        # Transaction stack should always have a 'base' transaction which can't be rolled back/commited
         self.transaction_stack = [self.current_trans]
         
     def pop_transaction(self):
