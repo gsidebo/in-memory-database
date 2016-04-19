@@ -1,4 +1,5 @@
 from __future__ import print_function
+from utils import Stack
 
 
 class InMemoryDatabase(object):
@@ -29,15 +30,15 @@ class InMemoryDatabase(object):
         return var in self.data
     
     def get(self, var):
-        return None if not self.is_set(var) else self.data[var][0]
+        return None if not self.is_set(var) else self.data[var].current()
     
     def add_or_replace(self, var, value, new=True):
         """
-        Adds a new value which will act as the current value at key 'var' or
-        replaces the current value. Updates the value index accordingly.
+        Adds a new value which will act as the current value at key 'var', 
+        or replaces the current value. Updates the value index accordingly.
         """
         if new and not self.is_set(var):
-            self.data[var] = []
+            self.data[var] = Stack()
         else:
             current_value = self.get(var)
             if current_value == value:
@@ -46,10 +47,9 @@ class InMemoryDatabase(object):
             else:
                 # The current value is being changed, so the value index needs to be changed
                 self.decrement_value_index(current_value)
-        if new:
-            self.data[var].insert(0, value)
-        else:
-            self.data[var][0] = value
+        if not new:
+            self.data[var].pop()
+        self.data[var].push(value)
         self.increment_value_index(value)
         
     def add(self, var, value):
@@ -59,9 +59,9 @@ class InMemoryDatabase(object):
         self.add_or_replace(var, value, new=False)
         
     def remove(self, var):
-        value = self.data[var][0]
-        self.data[var].pop(0)
-        if not self.data[var]:
+        value = self.data[var].current()
+        self.data[var].pop()
+        if self.data[var].is_empty():
             del self.data[var]
         else:
             self.increment_value_index(self.get(var))
@@ -73,7 +73,7 @@ class InMemoryDatabase(object):
         deleting the 'history' of each value list.
         """
         for var in self.data.keys():
-            self.data[var] = [self.data[var][0]]
+            self.data[var] = Stack(self.data[var].current())
             
     def num_equal_to(self, value):
         return self.value_index.get(value, 0)
@@ -93,32 +93,31 @@ class DbSession(object):
     """
     def __init__(self):
         self.database = InMemoryDatabase()
-        self.transaction_stack = []
+        self.transaction_stack = Stack()
         self.current_trans = None
         self.reset_transaction_state()
     
     def reset_transaction_state(self):
-        self.current_trans = set() if not self.transaction_stack else self.transaction_stack[0]
+        self.current_trans = set() if self.transaction_stack.is_empty() else self.transaction_stack.current()
         # Transaction stack should always have a 'base' transaction which can't be rolled back/commited
-        self.transaction_stack = [self.current_trans]
+        self.transaction_stack = Stack(self.current_trans)
         
     def pop_transaction(self):
-        self.transaction_stack.pop(0)
-        self.current_trans = self.transaction_stack[0]
+        self.transaction_stack.pop()
+        self.current_trans = self.transaction_stack.current()
 
     def has_open_transaction(self):
-        return len(self.transaction_stack) > 1
+        return self.transaction_stack.size() > 1
         
     def begin(self):
         self.current_trans = set()
-        self.transaction_stack.insert(0, self.current_trans)
+        self.transaction_stack.push(self.current_trans)
         
     def rollback(self):
         if not self.has_open_transaction():
             print('NO TRANSACTION')
         else:
-            for var in list(self.current_trans):
-                self.database.remove(var)
+            map(self.database.remove, list(self.current_trans))
             self.pop_transaction()
         
     def commit(self):
